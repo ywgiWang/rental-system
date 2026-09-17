@@ -28,6 +28,12 @@ export const api = {
     update: (id, body) => request('PUT', `/api/listings/${id}`, body),
     delete: (id) => request('DELETE', `/api/listings/${id}`),
   },
+  properties: {
+    list: () => request('GET', '/api/properties'),
+    create: (body) => request('POST', '/api/properties', body),
+    update: (id, body) => request('PUT', `/api/properties/${id}`, body),
+    delete: (id) => request('DELETE', `/api/properties/${id}`),
+  },
   applications: {
     list: () => request('GET', '/api/applications'),
     create: (body) => request('POST', '/api/applications', body),
@@ -49,7 +55,27 @@ export const api = {
     create: (body) => request('POST', '/api/leases', body),
     update: (id, body) => request('PUT', `/api/leases/${id}`, body),
   },
+  bills: {
+    list: (leaseId, period) => request('GET', `/api/leases/${leaseId}/bills${period ? '?period=' + period : ''}`),
+    generate: (period) => request('POST', '/api/bills/generate', { period }),
+    create: (leaseId, body) => request('POST', `/api/leases/${leaseId}/bills`, body),
+    update: (id, body) => request('PUT', `/api/bills/${id}`, body),
+    delete: (id) => request('DELETE', `/api/bills/${id}`),
+  },
   users: {
     list: (role) => request('GET', `/api/users?${role ? 'role=' + role : ''}`),
+  },
+  upload: async (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const token = getToken();
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
   },
 };

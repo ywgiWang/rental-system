@@ -24,22 +24,29 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      CREATE TABLE IF NOT EXISTS listings (
+      CREATE TABLE IF NOT EXISTS properties (
         id SERIAL PRIMARY KEY,
-        title VARCHAR(200) NOT NULL,
-        description TEXT,
+        landlord_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         address VARCHAR(300) NOT NULL,
         area REAL,
-        price REAL NOT NULL,
         rooms INTEGER,
         type VARCHAR(20) CHECK(type IN ('apartment','house','villa','studio')),
-        status VARCHAR(20) DEFAULT 'available' CHECK(status IN ('available','rented','offline')),
-        landlord_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        description TEXT,
         images JSONB DEFAULT '[]',
-        available_from DATE,
         latitude DOUBLE PRECISION,
         longitude DOUBLE PRECISION,
         geom GEOMETRY(Point, 4326),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS listings (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        price REAL NOT NULL,
+        available_from DATE,
+        status VARCHAR(20) DEFAULT 'available' CHECK(status IN ('available','rented','offline')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -76,17 +83,34 @@ async function initDB() {
 
       CREATE TABLE IF NOT EXISTS leases (
         id SERIAL PRIMARY KEY,
-        listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        listing_id INTEGER REFERENCES listings(id) ON DELETE SET NULL,
         tenant_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        landlord_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        rent REAL NOT NULL,
+        deposit REAL,
         start_date DATE NOT NULL,
         end_date DATE NOT NULL,
+        contract_files JSONB DEFAULT '[]',
         status VARCHAR(20) DEFAULT 'active' CHECK(status IN ('active','expired','terminated')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS bills (
+        id SERIAL PRIMARY KEY,
+        lease_id INTEGER NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+        period VARCHAR(7) NOT NULL,
+        type VARCHAR(20) NOT NULL CHECK(type IN ('water','electric','gas','property','internet','other')),
+        amount REAL,
+        status VARCHAR(20) DEFAULT 'unpaid' CHECK(status IN ('unpaid','paid')),
+        paid_at TIMESTAMP,
+        note TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      CREATE INDEX IF NOT EXISTS idx_listings_geom ON listings USING GIST(geom);
+      CREATE INDEX IF NOT EXISTS idx_properties_geom ON properties USING GIST(geom);
       CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
+      CREATE INDEX IF NOT EXISTS idx_listings_property ON listings(property_id);
     `);
 
     // Enable PostGIS if not already
@@ -104,12 +128,21 @@ async function initDB() {
       `, [hash]);
 
       await client.query(`
-        INSERT INTO listings (title, description, address, area, price, rooms, type, status, landlord_id, images, available_from, latitude, longitude, geom) VALUES
-        ('阳光花园三居室', '南北通透，精装修，拎包入住', '北京市朝阳区阳光花园3号楼1202', 108, 5800, 3, 'apartment', 'available', 1, '[]', '2026-10-01', 39.9042, 116.4074, ST_SetSRID(ST_MakePoint(116.4074, 39.9042), 4326)),
-        ('市中心精装一居室', '交通便利，近地铁，配套齐全', '上海市黄浦区中心大厦B座1508', 45, 3200, 1, 'studio', 'available', 1, '[]', '2026-09-15', 31.2304, 121.4737, ST_SetSRID(ST_MakePoint(121.4737, 31.2304), 4326)),
-        ('郊区独栋别墅', '环境优美，带花园，适合家庭', '杭州市西湖区翠湖山庄18号', 280, 15000, 5, 'villa', 'available', 1, '[]', '2026-11-01', 30.2741, 120.1551, ST_SetSRID(ST_MakePoint(120.1551, 30.2741), 4326)),
-        ('青年公寓复式', '年轻化社区，健身房游泳池', '深圳市南山区青年公寓D栋608', 65, 4200, 2, 'apartment', 'rented', 1, '[]', '2026-09-01', 22.5431, 114.0579, ST_SetSRID(ST_MakePoint(114.0579, 22.5431), 4326)),
-        ('老街胡同小院', '老北京风情，独门独院', '北京市东城区胡同里45号', 55, 4800, 2, 'house', 'available', 1, '[]', '2026-10-15', 39.9289, 116.4074, ST_SetSRID(ST_MakePoint(116.4074, 39.9289), 4326))
+        INSERT INTO properties (landlord_id, address, area, rooms, type, description, images, latitude, longitude, geom) VALUES
+        (1, '北京市朝阳区阳光花园3号楼1202', 108, 3, 'apartment', '南北通透，精装修，拎包入住', '[]', 39.9042, 116.4074, ST_SetSRID(ST_MakePoint(116.4074, 39.9042), 4326)),
+        (1, '上海市黄浦区中心大厦B座1508', 45, 1, 'studio', '交通便利，近地铁，配套齐全', '[]', 31.2304, 121.4737, ST_SetSRID(ST_MakePoint(121.4737, 31.2304), 4326)),
+        (1, '杭州市西湖区翠湖山庄18号', 280, 5, 'villa', '环境优美，带花园，适合家庭', '[]', 30.2741, 120.1551, ST_SetSRID(ST_MakePoint(120.1551, 30.2741), 4326)),
+        (1, '深圳市南山区青年公寓D栋608', 65, 2, 'apartment', '年轻化社区，健身房游泳池', '[]', 22.5431, 114.0579, ST_SetSRID(ST_MakePoint(114.0579, 22.5431), 4326)),
+        (1, '北京市东城区胡同里45号', 55, 2, 'house', '老北京风情，独门独院', '[]', 39.9289, 116.4074, ST_SetSRID(ST_MakePoint(116.4074, 39.9289), 4326))
+      `);
+
+      await client.query(`
+        INSERT INTO listings (property_id, title, price, available_from, status) VALUES
+        (1, '阳光花园三居室', 5800, '2026-10-01', 'available'),
+        (2, '市中心精装一居室', 3200, '2026-09-15', 'available'),
+        (3, '郊区独栋别墅', 15000, '2026-11-01', 'available'),
+        (4, '青年公寓复式', 4200, '2026-09-01', 'rented'),
+        (5, '老街胡同小院', 4800, '2026-10-15', 'available')
       `);
 
       await client.query(`

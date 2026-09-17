@@ -1,22 +1,24 @@
 <template>
   <div>
-    <div class="top-bar">
-      <div class="top-bar-brand">悦居租房</div>
-      <div class="top-bar-user">{{ auth.user?.name }}</div>
-    </div>
+    <header class="app-header">
+      <div class="top-bar">
+        <div class="top-bar-brand">悦居租房</div>
+        <div class="top-bar-user">{{ auth.user?.name }}</div>
+      </div>
+      <nav class="navbar">
+        <div class="navbar-inner">
+          <router-link v-for="item in navItems" :key="item.path" :to="item.path" :class="['nav-item', { active: route.path === item.path }]">
+            <span class="icon">{{ item.icon }}</span>
+            <span>{{ item.label }}</span>
+            <span v-if="item.badge > 0" class="nav-badge">{{ item.badge }}</span>
+          </router-link>
+          <a class="nav-item" @click="logout"><span class="icon">🚪</span><span>退出</span></a>
+        </div>
+      </nav>
+    </header>
     <div class="container page">
       <slot />
     </div>
-    <nav class="navbar">
-      <div class="navbar-inner">
-        <router-link v-for="item in navItems" :key="item.path" :to="item.path" :class="['nav-item', { active: route.path === item.path }]">
-          <span class="icon">{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-          <span v-if="item.badge > 0" class="nav-badge">{{ item.badge }}</span>
-        </router-link>
-        <a class="nav-item" @click="logout"><span class="icon">🚪</span><span>退出</span></a>
-      </div>
-    </nav>
   </div>
 </template>
 
